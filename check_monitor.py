@@ -1,9 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 import os
+from dotenv import load_dotenv
+from pushover import Client
 
-PUSHOVER_USER_KEY = ""
-PUSHOVER_API_TOKEN = ""
+load_dotenv()
+
+PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
+PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY")
 
 URL = "https://www.fancrew.jp/search/result/4"
 LAST_FILE = "last_items.txt"
@@ -39,11 +43,8 @@ def notify(changes, added=True):
     change_type = "追加" if added else "削除"
     message = f"【{change_type}された画像投稿モニター】\n" + "\n".join(changes)
 
-    requests.post("https://api.pushover.net/1/messages.json", data={
-        "token": PUSHOVER_API_TOKEN,
-        "user": PUSHOVER_USER_KEY,
-        "message": message
-    })
+    client = Client(PUSHOVER_USER_KEY, api_token=PUSHOVER_API_TOKEN)
+    client.send_message(message, title="ファンクル監視通知")
 
 def main():
     current_titles = fetch_titles()
