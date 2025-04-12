@@ -1,51 +1,49 @@
 import requests
 from bs4 import BeautifulSoup
+import re
 import os
+from pushover import Client
 
 URL = "https://www.fancrew.jp/search/result/4"
-LAST_FILE = "last_item.txt"
 
-PUSHOVER_USER_KEY = "upjxy49vnsb3atpi7u2osjzg2u49uv"
-PUSHOVER_API_TOKEN = "a747k4i85r9n9vrqtremrjezfog3t6"
+# Pushover 通知
+PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY")
+PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
 
-def get_latest_item():
+def send_notification(message):
+    client = Client(PUSHOVER_USER_KEY, api_token=PUSHOVER_API_TOKEN)
+    client.send_message(message, title="ファンクル モニター通知")
+
+def get_monitor_count():
     res = requests.get(URL)
     soup = BeautifulSoup(res.text, 'html.parser')
-    item = soup.select_one('.monitorList > li')
-    if not item:
-        raise Exception("❌ monitorList > li が見つかりません。HTML構造が変わった可能性があります。")
-    a_tag = item.select_one('a')
-    title = a_tag.text.strip()
-    link = "https://www.fancrew.jp" + a_tag['href']
-    return title, link
+    count_text = soup.select_one('.monitorListWrap .total').text.strip()
+    match = re.search(r'/\s*(\d+)', count_text)
+    if not match:
+        raise Exception("❌ 件数の取得に失敗しました。HTML構造が変わった可能性があります。")
+    return int(match.group(1))
 
-def send_pushover_notification(title, link):
-    data = {
-        "token": PUSHOVER_API_TOKEN,
-        "user": PUSHOVER_USER_KEY,
-        "title": "【新着】ファンくる通販モニター",
-        "message": title,
-        "url": link,
-    }
-    requests.post("https://api.pushover.net/1/messages.json", data=data)
+def load_last_count():
+    try:
+        with open('last_count.txt', 'r') as f:
+            return int(f.read().strip())
+    except FileNotFoundError:
+        return None
 
-# ファイルがなければ空で作成
-if not os.path.exists(LAST_FILE):
-    with open(LAST_FILE, "w", encoding="utf-8") as f:
-        f.write("")
+def save_last_count(count):
+    with open('last_count.txt', 'w') as f:
+        f.write(str(count))
 
 def main():
-    title, link = get_latest_item()
-    with open(LAST_FILE, "r", encoding="utf-8") as f:
-        last_title = f.read().strip()
+    current_count = get_monitor_count()
+    last_count = load_last_count()
 
-    if title != last_title:
-        print("🔔 新着検出！通知送信中…")
-        send_pushover_notification(title, link)
-        with open(LAST_FILE, "w", encoding="utf-8") as f:
-            f.write(title)
+    if last_count != current_count:
+        message = f"🆕 モニター件数が変わりました！ {last_count or 'N/A'} → {current_count}件"
+        send_notification(message)
+        save_last_count(current_count)
     else:
-        print("📭 変更なし。通知なし。")
+        print("🔁 件数に変化なし")
 
 if __name__ == "__main__":
     main()
