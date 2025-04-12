@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from dotenv import load_dotenv
-from pushover import Client
 
 load_dotenv()
 
@@ -43,8 +42,14 @@ def notify(changes, added=True):
     change_type = "追加" if added else "削除"
     message = f"【{change_type}された画像投稿モニター】\n" + "\n".join(changes)
 
-    client = Client(PUSHOVER_USER_KEY, api_token=PUSHOVER_API_TOKEN)
-    client.send_message(message, title="ファンクル監視通知")
+    payload = {
+        "token": PUSHOVER_API_TOKEN,
+        "user": PUSHOVER_USER_KEY,
+        "message": message,
+        "title": "ファンクル監視通知"
+    }
+
+    requests.post("https://api.pushover.net/1/messages.json", data=payload)
 
 def main():
     current_titles = fetch_titles()
