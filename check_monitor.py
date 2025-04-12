@@ -29,13 +29,15 @@ def send_pushover_notification(title, link):
     }
     requests.post("https://api.pushover.net/1/messages.json", data=data)
 
+# 🔧 ここでファイルがなければ空で作成
+if not os.path.exists(LAST_FILE):
+    with open(LAST_FILE, "w", encoding="utf-8") as f:
+        f.write("")
+
 def main():
     title, link = get_latest_item()
-    if os.path.exists(LAST_FILE):
-        with open(LAST_FILE, "r", encoding="utf-8") as f:
-            last_title = f.read().strip()
-    else:
-        last_title = ""
+    with open(LAST_FILE, "r", encoding="utf-8") as f:
+        last_title = f.read().strip()
 
     if title != last_title:
         print("🔔 新着検出！通知送信中…")
