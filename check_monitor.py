@@ -11,9 +11,9 @@ PUSHOVER_API_TOKEN = "a747k4i85r9n9vrqtremrjezfog3t6"
 def get_latest_item():
     res = requests.get(URL)
     soup = BeautifulSoup(res.text, 'html.parser')
-    item = soup.select_one('.monitorListItem')
+    item = soup.select_one('.monitorList > li')
     if not item:
-        raise Exception("❌ monitorListItem が見つかりません。HTML構造が変わった可能性があります。")
+        raise Exception("❌ monitorList > li が見つかりません。HTML構造が変わった可能性があります。")
     a_tag = item.select_one('a')
     title = a_tag.text.strip()
     link = "https://www.fancrew.jp" + a_tag['href']
@@ -29,7 +29,7 @@ def send_pushover_notification(title, link):
     }
     requests.post("https://api.pushover.net/1/messages.json", data=data)
 
-# 🔧 ここでファイルがなければ空で作成
+# ファイルがなければ空で作成
 if not os.path.exists(LAST_FILE):
     with open(LAST_FILE, "w", encoding="utf-8") as f:
         f.write("")
