@@ -2,8 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import os
 
-PUSHOVER_USER_KEY = "upjxy49vnsb3atpi7u2osjzg2u49uv"
-PUSHOVER_API_TOKEN = "a747k4i85r9n9vrqtremrjezfog3t6"
+PUSHOVER_USER_KEY = ""
+PUSHOVER_API_TOKEN = ""
 
 URL = "https://www.fancrew.jp/search/result/4"
 LAST_FILE = "last_items.txt"
