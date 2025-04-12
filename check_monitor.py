@@ -1,51 +1,63 @@
 import requests
 from bs4 import BeautifulSoup
-import re
 import os
 
+PUSHOVER_USER_KEY = "upjxy49vnsb3atpi7u2osjzg2u49uv"
+PUSHOVER_API_TOKEN = "a747k4i85r9n9vrqtremrjezfog3t6"
+
 URL = "https://www.fancrew.jp/search/result/4"
+LAST_FILE = "last_items.txt"
 
-def send_notification(message):
-    url = "https://api.pushover.net/1/messages.json"
-    data = {
-        "token": os.getenv("PUSHOVER_API_TOKEN"),
-        "user": os.getenv("PUSHOVER_USER_KEY"),
-        "message": message,
-        "title": "ファンクル モニター通知"
-    }
-    response = requests.post(url, data=data)
-    response.raise_for_status()
-
-def get_monitor_count():
+def fetch_titles():
     res = requests.get(URL)
-    soup = BeautifulSoup(res.text, 'html.parser')
-    count_text = soup.select_one('.monitorListWrap .total').text.strip()
-    match = re.search(r'/\s*(\d+)', count_text)
-    if not match:
-        raise Exception("❌ 件数の取得に失敗しました。HTML構造が変わった可能性があります。")
-    return int(match.group(1))
+    soup = BeautifulSoup(res.text, "html.parser")
+    items = soup.select(".monitorListItem")
+    titles = []
 
-def load_last_count():
-    try:
-        with open('last_count.txt', 'r') as f:
-            return int(f.read().strip())
-    except FileNotFoundError:
-        return None
+    for item in items:
+        title_tag = item.select_one(".monitorListItem__title")
+        if title_tag and "画像投稿モニター" in title_tag.text:
+            title = title_tag.text.strip()
+            titles.append(title)
 
-def save_last_count(count):
-    with open('last_count.txt', 'w') as f:
-        f.write(str(count))
+    return sorted(titles)
+
+def load_last_titles():
+    if not os.path.exists(LAST_FILE):
+        return []
+    with open(LAST_FILE, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f.readlines()]
+
+def save_titles(titles):
+    with open(LAST_FILE, "w", encoding="utf-8") as f:
+        for title in titles:
+            f.write(f"{title}\n")
+
+def notify(changes, added=True):
+    if not changes:
+        return
+    change_type = "追加" if added else "削除"
+    message = f"【{change_type}された画像投稿モニター】\n" + "\n".join(changes)
+
+    requests.post("https://api.pushover.net/1/messages.json", data={
+        "token": PUSHOVER_API_TOKEN,
+        "user": PUSHOVER_USER_KEY,
+        "message": message
+    })
 
 def main():
-    current_count = get_monitor_count()
-    last_count = load_last_count()
+    current_titles = fetch_titles()
+    last_titles = load_last_titles()
 
-    if last_count != current_count:
-        message = f"🆕 モニター件数が変わりました！ {last_count or 'N/A'} → {current_count}件"
-        send_notification(message)
-        save_last_count(current_count)
-    else:
-        print("🔁 件数に変化なし")
+    added = list(set(current_titles) - set(last_titles))
+    removed = list(set(last_titles) - set(current_titles))
+
+    if added:
+        notify(added, added=True)
+    if removed:
+        notify(removed, added=False)
+
+    save_titles(current_titles)
 
 if __name__ == "__main__":
     main()
