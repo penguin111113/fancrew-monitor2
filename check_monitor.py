@@ -11,9 +11,12 @@ PUSHOVER_API_TOKEN = "a747k4i85r9n9vrqtremrjezfog3t6"
 def get_latest_item():
     res = requests.get(URL)
     soup = BeautifulSoup(res.text, 'html.parser')
-    item = soup.select_one('.monitorList .clearfix')
-    title = item.select_one('a').text.strip()
-    link = item.select_one('a')['href']
+    item = soup.select_one('.monitorListItem')
+    if not item:
+        raise Exception("❌ monitorListItem が見つかりません。HTML構造が変わった可能性があります。")
+    a_tag = item.select_one('a')
+    title = a_tag.text.strip()
+    link = "https://www.fancrew.jp" + a_tag['href']
     return title, link
 
 def send_pushover_notification(title, link):
