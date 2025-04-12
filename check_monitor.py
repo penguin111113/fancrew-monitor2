@@ -2,17 +2,19 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
-from pushover import Client
 
 URL = "https://www.fancrew.jp/search/result/4"
 
-# Pushover 通知
-PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY")
-PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
-
 def send_notification(message):
-    client = Client(PUSHOVER_USER_KEY, api_token=PUSHOVER_API_TOKEN)
-    client.send_message(message, title="ファンクル モニター通知")
+    url = "https://api.pushover.net/1/messages.json"
+    data = {
+        "token": os.getenv("PUSHOVER_API_TOKEN"),
+        "user": os.getenv("PUSHOVER_USER_KEY"),
+        "message": message,
+        "title": "ファンクル モニター通知"
+    }
+    response = requests.post(url, data=data)
+    response.raise_for_status()
 
 def get_monitor_count():
     res = requests.get(URL)
