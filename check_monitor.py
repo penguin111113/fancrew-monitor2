@@ -1,69 +1,75 @@
 import requests
 from bs4 import BeautifulSoup
+import json
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
-PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY")
-
+# 設定
 URL = "https://www.fancrew.jp/search/result/4"
-LAST_FILE = "last_items.txt"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+}
+LAST_ITEMS_FILE = "last_items.json"
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
 
-def fetch_titles():
-    res = requests.get(URL)
-    soup = BeautifulSoup(res.text, "html.parser")
-    items = soup.select(".monitorListItem")
-    titles = []
+def fetch_current_items():
+    response = requests.get(URL, headers=HEADERS)
+    soup = BeautifulSoup(response.text, "html.parser")
+    items = soup.select(".monitorListItem h3")
+    titles = [item.text.strip() for item in items]
+    print(f"✅ 現在のモニター件数: {len(titles)}")
+    return titles
 
-    for item in items:
-        title_tag = item.select_one(".monitorListItem__title")
-        if title_tag and "画像投稿モニター" in title_tag.text:
-            title = title_tag.text.strip()
-            titles.append(title)
-
-    return sorted(titles)
-
-def load_last_titles():
-    if not os.path.exists(LAST_FILE):
+def load_last_items():
+    if not os.path.exists(LAST_ITEMS_FILE):
         return []
-    with open(LAST_FILE, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f.readlines()]
+    with open(LAST_ITEMS_FILE, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+        if not content:
+            return []
+        return json.loads(content)
 
-def save_titles(titles):
-    with open(LAST_FILE, "w", encoding="utf-8") as f:
-        for title in titles:
-            f.write(f"{title}\n")
+def save_last_items(items):
+    with open(LAST_ITEMS_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
 
-def notify(changes, added=True):
-    if not changes:
+def send_slack_notification(message):
+    if not SLACK_WEBHOOK_URL:
+        print("⚠️ SLACK_WEBHOOK_URL が設定されていません")
         return
-    change_type = "追加" if added else "削除"
-    message = f"【{change_type}された画像投稿モニター】\n" + "\n".join(changes)
 
-    payload = {
-        "token": PUSHOVER_API_TOKEN,
-        "user": PUSHOVER_USER_KEY,
-        "message": message,
-        "title": "ファンクル監視通知"
-    }
+    payload = {"text": message}
 
-    requests.post("https://api.pushover.net/1/messages.json", data=payload)
+    try:
+        res = requests.post(SLACK_WEBHOOK_URL, json=payload)
+        res.raise_for_status()
+        print("📨 Slack通知を送信しました")
+    except Exception as e:
+        print("❌ Slack通知送信エラー:", e)
 
 def main():
-    current_titles = fetch_titles()
-    last_titles = load_last_titles()
+    current_items = fetch_current_items()
+    last_items = load_last_items()
 
-    added = list(set(current_titles) - set(last_titles))
-    removed = list(set(last_titles) - set(current_titles))
+    added = list(set(current_items) - set(last_items))
+    removed = list(set(last_items) - set(current_items))
 
-    if added:
-        notify(added, added=True)
-    if removed:
-        notify(removed, added=False)
+    print(f"🆕 追加件数: {len(added)}")
+    print(f"🗑️ 削除件数: {len(removed)}")
 
-    save_titles(current_titles)
+    if added or removed:
+        message_lines = ["【ファンクル画像投稿モニターの変動通知】"]
+        if added:
+            message_lines.append(f"追加: {len(added)}件")
+            for a in added:
+                message_lines.append(f"＋ {a}")
+        if removed:
+            message_lines.append(f"削除: {len(removed)}件")
+            for r in removed:
+                message_lines.append(f"－ {r}")
+        send_slack_notification("\n".join(message_lines))
+        save_last_items(current_items)
+    else:
+        print("🔁 モニターの変化なし")
 
 if __name__ == "__main__":
     main()
